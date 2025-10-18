@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Player</title>
+    <link href="https://vjs.zencdn.net/8.5.2/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            background: #2d2d2d; 
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-container { 
+            width: 100%; 
+            max-width: 1280px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .video-js { 
+            width: 100%;
+            height: calc(100vh - 40px);
+            max-height: 720px;
+        }
+        .error-message { 
+            color: white; 
+            text-align: center; 
+            padding: 20px; 
+            background: rgba(255, 0, 0, 0.7);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 1000;
+            text-decoration: none;
+        }
+        .back-button:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+        .nav-buttons {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 1000;
+        }
+        .episode-nav-button {
+            padding: 10px 20px;
+            background: rgba(0, 123, 255, 0.8);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        .episode-nav-button:hover:not(:disabled) {
+            background: rgba(0, 123, 255, 1);
+        }
+        .episode-nav-button:disabled {
+            background: rgba(100, 100, 100, 0.5);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-button" id="back-button">← Back to Videos</a>
+    <div class="video-container">
+        <video 
+            id="my-video" 
+            class="video-js vjs-big-play-centered vjs-fluid" 
+            controls 
+            preload="auto"
+            playsinline
+            webkit-playsinline>
+            Your browser does not support HTML5 video.
+        </video>
+        <div id="error-message" class="error-message"></div>
+    </div>
+    <div class="nav-buttons">
+        <button class="episode-nav-button" id="prev-episode" disabled>← Previous Episode</button>
+        <button class="episode-nav-button" id="next-episode" disabled>Next Episode →</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const videoId = urlParams.get('id');
+            const errorElement = document.getElementById('error-message');
+            const backButton = document.getElementById('back-button');
+            const prevButton = document.getElementById('prev-episode');
+            const nextButton = document.getElementById('next-episode');
+            
+            function showError(message) {
+                errorElement.textContent = message;
+                errorElement.style.display = 'block';
+            }
+
+            if (!videoId) {
+                showError('No video ID provided');
+                return;
+            }
+
+            // Extract show ID from video ID (format: showid_episodenumber)
+            const showId = videoId.substring(0, videoId.lastIndexOf('_'));
+            if (showId) {
+                backButton.href = `/#show=${showId}`;
+                
+                // Fetch show data to get all episodes
+                fetch(`/api/shows/${showId}`)
+                    .then(response => response.json())
+                    .then(showData => {
+                        // Flatten all episodes from all seasons
+                        let allEpisodes = [];
+                        showData.seasons.forEach(season => {
+                            allEpisodes = allEpisodes.concat(season.episodes);
+                        });
+                        
+                        // Find current episode index
+                        const currentIndex = allEpisodes.findIndex(ep => ep.id === videoId);
+                        
+                        if (currentIndex > 0) {
+                            // Enable previous button
+                            prevButton.disabled = false;
+                            prevButton.onclick = function() {
+                                window.location.href = `/player?id=${allEpisodes[currentIndex - 1].id}`;
+                            };
+                        }
+                        
+                        if (currentIndex < allEpisodes.length - 1) {
+                            // Enable next button
+                            nextButton.disabled = false;
+                            nextButton.onclick = function() {
+                                window.location.href = `/player?id=${allEpisodes[currentIndex + 1].id}`;
+                            };
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching show data:', error);
+                    });
+            }
+
+            const player = videojs('my-video', {
+                controls: true,
+                fluid: true,
+                responsive: true,
+                playbackRates: [0.5, 1, 1.5, 2]
+            });
+
+            player.src({
+                src: `/api/stream/${videoId}`,
+                type: 'video/mp4'
+            });
+
+            player.on('error', function() {
+                const error = player.error();
+                console.error('Player error:', error);
+                showError('Error playing the video. Please try again.');
+            });
+
+            player.on('loadedmetadata', function() {
+                console.log('Video metadata loaded successfully');
+            });
+        });
+    </script>
+</body>
+</html>

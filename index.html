@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streaming</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1a1a1a;
+            --secondary-color: #2d2d2d;
+            --accent-color: #007bff;
+            --text-color: #ffffff;
+            --text-secondary: #a0a0a0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--primary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--secondary-color);
+        }
+
+        h1, h2 {
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        h1 { font-size: 2rem; }
+        h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+
+        .shows-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 2rem;
+            padding: 1rem 0;
+        }
+
+        .show-card {
+            background: var(--secondary-color);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .show-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .show-image {
+            width: 100%;
+            height: 350px;
+            object-fit: cover;
+            background-color: #444;
+        }
+
+        .show-info {
+            padding: 1rem;
+        }
+
+        .show-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .episode-count {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .show-button {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: var(--accent-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+            margin-top: 0.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .show-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Episode list styles */
+        .episode-list {
+            display: none;
+            margin-top: 2rem;
+        }
+
+        .episode-list.active {
+            display: block;
+        }
+
+        .episode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .episode-card {
+            background: var(--secondary-color);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .episode-title {
+            margin-right: 1rem;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: var(--secondary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+            margin-bottom: 2rem;
+            transition: background-color 0.2s;
+        }
+
+        .back-button:hover {
+            background-color: #444;
+        }
+
+        /* Search bar styles */
+        .search-container {
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto 2rem auto;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 1rem 3rem 1rem 1rem;
+            font-size: 1rem;
+            border: 2px solid var(--secondary-color);
+            border-radius: 8px;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            outline: none;
+            transition: border-color 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #search-input:focus {
+            border-color: var(--accent-color);
+        }
+
+        #search-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .shows-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 1rem;
+            }
+
+            .show-image {
+                height: 280px;
+            }
+
+            .episode-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Video Streaming</h1>
+        </header>
+        <main id="main-content">
+            <div id="shows-view">
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Search for shows..." />
+                    <span class="search-icon">🔍</span>
+                </div>
+                <div class="shows-grid" id="shows-container">
+                    <!-- Shows will be populated here -->
+                </div>
+            </div>
+            <div id="episodes-view" style="display: none;">
+                <a href="#" class="back-button" onclick="showAllShows(); return false;">← Back to Shows</a>
+                <h2 id="selected-show-title"></h2>
+                <div class="season-select-container">
+                    <select id="season-select" onchange="showSelectedSeason()">
+                        <!-- Seasons will be populated here -->
+                    </select>
+                </div>
+                <div class="episode-grid" id="episodes-container">
+                    <!-- Episodes will be populated here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <style>
+        .season-select-container {
+            margin-bottom: 2rem;
+        }
+
+        #season-select {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            border: 1px solid #444;
+            cursor: pointer;
+            min-width: 200px;
+        }
+
+        #season-select option {
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+        }
+    </style>
+
+    <script>
+        let shows = [];
+        let currentShow = null;
+        let currentSeason = null;
+
+        function filterShows(searchTerm) {
+            const container = document.getElementById('shows-container');
+            const filteredShows = shows.filter(show => 
+                show.title.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (filteredShows.length === 0) {
+                container.innerHTML = '<div class="no-results">No shows found matching your search.</div>';
+            } else {
+                container.innerHTML = filteredShows.map(show => createShowCard(show)).join('');
+            }
+        }
+
+        function createShowCard(show) {
+            return `
+                <div class="show-card" onclick="loadEpisodes('${show.id}')">
+                    <img class="show-image" src="${show.poster}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'250\' height=\'350\' viewBox=\'0 0 250 350\'%3E%3Crect width=\'250\' height=\'350\' fill=\'%23444\'/%3E%3Ctext x=\'125\' y=\'175\' fill=\'%23666\' text-anchor=\'middle\' dominant-baseline=\'middle\' font-family=\'sans-serif\' font-size=\'14\'%3ENo Poster%3C/text%3E%3C/svg%3E'" alt="${show.title}">
+                    <div class="show-info">
+                        <h3 class="show-title">${show.title}</h3>
+                        <div class="episode-count">
+                            ${show.seasonCount} Season${show.seasonCount !== 1 ? 's' : ''}, ${show.episodeCount} Episode${show.episodeCount !== 1 ? 's' : ''}
+                        </div>
+                        <button class="show-button">View Episodes</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createEpisodeCard(episode) {
+            return `
+                <div class="episode-card">
+                    <div class="episode-title">${episode.title}</div>
+                    <a href="/player?id=${episode.id}" class="show-button">Watch</a>
+                </div>
+            `;
+        }
+
+        function showAllShows() {
+            document.getElementById('shows-view').style.display = 'block';
+            document.getElementById('episodes-view').style.display = 'none';
+            window.history.pushState({}, '', '/');
+        }
+
+        function populateSeasonSelect(seasons) {
+            const seasonSelect = document.getElementById('season-select');
+            seasonSelect.innerHTML = seasons.map(season => 
+                `<option value="${season.year}">Season ${season.year} (${season.episodeCount} Episodes)</option>`
+            ).join('');
+        }
+
+        function showSelectedSeason() {
+            const seasonYear = document.getElementById('season-select').value;
+            if (!currentShow || !seasonYear) return;
+
+            const season = currentShow.seasons.find(s => s.year === seasonYear);
+            if (!season) return;
+
+            currentSeason = season;
+            const episodesContainer = document.getElementById('episodes-container');
+            episodesContainer.innerHTML = season.episodes
+                .sort((a, b) => a.number - b.number)
+                .map(episode => createEpisodeCard(episode))
+                .join('');
+        }
+
+        function loadEpisodes(showId) {
+            fetch(`/api/shows/${showId}`)
+                .then(response => response.json())
+                .then(show => {
+                    currentShow = show;
+                    document.getElementById('selected-show-title').textContent = show.title;
+                    
+                    // Populate and show season select
+                    populateSeasonSelect(show.seasons);
+                    
+                    // Show the first season by default
+                    if (show.seasons.length > 0) {
+                        document.getElementById('season-select').value = show.seasons[0].year;
+                        showSelectedSeason();
+                    }
+                    
+                    document.getElementById('shows-view').style.display = 'none';
+                    document.getElementById('episodes-view').style.display = 'block';
+                    window.history.pushState({showId}, '', `#show=${showId}`);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Handle browser back button
+        window.addEventListener('popstate', (event) => {
+            if (!window.location.hash) {
+                showAllShows();
+            }
+        });
+
+        // Load shows on page load
+        fetch('/api/shows')
+            .then(response => response.json())
+            .then(showsData => {
+                shows = showsData;
+                const container = document.getElementById('shows-container');
+                container.innerHTML = shows.map(show => createShowCard(show)).join('');
+
+                // Set up search functionality
+                const searchInput = document.getElementById('search-input');
+                searchInput.addEventListener('input', (e) => {
+                    filterShows(e.target.value);
+                });
+
+                // Check if we should load a specific show
+                const showMatch = window.location.hash.match(/show=([^&]*)/);
+                if (showMatch) {
+                    loadEpisodes(showMatch[1]);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    </script>
+</body>
+</html>
+    </script>
+</body>
+</html>
