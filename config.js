@@ -1,5 +1,5 @@
 // Backend API Configuration
-const API_BASE_URL = 'http://localhost:8085'; // Change this to your deployed backend URL
+const API_BASE_URL = 'http://10.0.0.38:8000'; // Change this to your deployed backend URL
 
 // API endpoints
 const API = {

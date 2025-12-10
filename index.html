@@ -368,7 +368,7 @@
             }
         });
 
-        // Load shows on page load
+        // Load shows on page load - use relative URL since served from same backend
         fetch('/api/shows')
             .then(response => response.json())
             .then(showsData => {
