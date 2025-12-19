@@ -4,6 +4,7 @@
     <title>Video Player</title>
     <link href="https://vjs.zencdn.net/8.5.2/video-js.css" rel="stylesheet" />
     <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
+    <script src="config.js"></script>
     <style>
         body { 
             margin: 0; 
@@ -103,9 +104,22 @@
     </div>
 
     <script>
+        // Check authentication
+        if (!Auth.isLoggedIn()) {
+            window.location.href = '/login.html';
+        }
+
+        let lastSavedProgress = 0;
+        let videoDuration = 0;
+        let currentEpisodeId = null;
+        let showData = null;
+
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             const videoId = urlParams.get('id');
+            const startTime = parseInt(urlParams.get('t')) || 0;
+            currentEpisodeId = videoId;
+            
             const errorElement = document.getElementById('error-message');
             const backButton = document.getElementById('back-button');
             const prevButton = document.getElementById('prev-episode');
@@ -127,12 +141,13 @@
                 backButton.href = `/#show=${showId}`;
                 
                 // Fetch show data to get all episodes
-                fetch(`/api/shows/${showId}`)
+                fetch(API.showDetails(showId))
                     .then(response => response.json())
-                    .then(showData => {
+                    .then(data => {
+                        showData = data;
                         // Flatten all episodes from all seasons
                         let allEpisodes = [];
-                        showData.seasons.forEach(season => {
+                        data.seasons.forEach(season => {
                             allEpisodes = allEpisodes.concat(season.episodes);
                         });
                         
@@ -143,6 +158,7 @@
                             // Enable previous button
                             prevButton.disabled = false;
                             prevButton.onclick = function() {
+                                saveProgress(true); // Save before navigating
                                 window.location.href = `/player?id=${allEpisodes[currentIndex - 1].id}`;
                             };
                         }
@@ -151,6 +167,7 @@
                             // Enable next button
                             nextButton.disabled = false;
                             nextButton.onclick = function() {
+                                saveProgress(true); // Save before navigating
                                 window.location.href = `/player?id=${allEpisodes[currentIndex + 1].id}`;
                             };
                         }
@@ -168,7 +185,7 @@
             });
 
             player.src({
-                src: `/api/stream/${videoId}`,
+                src: API.stream(videoId),
                 type: 'video/mp4'
             });
 
@@ -180,7 +197,60 @@
 
             player.on('loadedmetadata', function() {
                 console.log('Video metadata loaded successfully');
+                videoDuration = player.duration();
+                
+                // Seek to start time if provided
+                if (startTime > 0 && startTime < videoDuration) {
+                    player.currentTime(startTime);
+                }
             });
+
+            // Save progress periodically while playing
+            player.on('timeupdate', function() {
+                const currentTime = Math.floor(player.currentTime());
+                // Save every 10 seconds of progress
+                if (currentTime - lastSavedProgress >= 10) {
+                    saveProgress();
+                }
+            });
+
+            // Save progress when paused
+            player.on('pause', function() {
+                saveProgress();
+            });
+
+            // Save progress when leaving the page
+            window.addEventListener('beforeunload', function() {
+                saveProgress(true);
+            });
+
+            // Save progress function
+            async function saveProgress(immediate = false) {
+                if (!currentEpisodeId || !Auth.isLoggedIn()) return;
+                
+                const currentTime = Math.floor(player.currentTime());
+                const duration = Math.floor(videoDuration);
+                
+                // Don't save if no significant change
+                if (!immediate && Math.abs(currentTime - lastSavedProgress) < 5) return;
+                
+                lastSavedProgress = currentTime;
+
+                try {
+                    await Auth.fetch(API.user.watchProgress, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            episode_id: currentEpisodeId,
+                            progress: currentTime,
+                            duration: duration
+                        })
+                    });
+                    console.log('Progress saved:', currentTime);
+                } catch (error) {
+                    console.error('Error saving progress:', error);
+                }
+            }
         });
     </script>
 </body>

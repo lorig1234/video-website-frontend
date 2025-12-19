@@ -37,6 +37,37 @@
             padding: 1rem 0;
             margin-bottom: 2rem;
             border-bottom: 1px solid var(--secondary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-name {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background-color: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            background-color: var(--accent-color);
+            color: white;
         }
 
         h1, h2 {
@@ -49,8 +80,8 @@
 
         .shows-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 2rem;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1.5rem;
             padding: 1rem 0;
         }
 
@@ -68,19 +99,19 @@
 
         .show-image {
             width: 100%;
-            height: 350px;
+            height: 200px;
             object-fit: cover;
             background-color: #444;
         }
 
         .show-info {
-            padding: 1rem;
+            padding: 0.5rem;
         }
 
         .show-title {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
             color: var(--text-color);
         }
 
@@ -92,13 +123,13 @@
 
         .show-button {
             display: inline-block;
-            padding: 0.5rem 1rem;
+            padding: 0.4rem 0.8rem;
             background-color: var(--accent-color);
             color: white;
             text-decoration: none;
             border-radius: 4px;
             font-weight: 500;
-            margin-top: 0.5rem;
+            margin-top: 0.3rem;
             transition: background-color 0.2s;
         }
 
@@ -196,18 +227,106 @@
             font-size: 1.2rem;
         }
 
+        /* Continue Watching Section */
+        .continue-watching-section {
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .continue-watching-section.has-items {
+            display: block;
+        }
+
+        .continue-watching-section h2 {
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .continue-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .continue-card {
+            background: var(--secondary-color);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .continue-card:hover {
+            background-color: #3d3d3d;
+        }
+
+        .continue-poster {
+            width: 60px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 4px;
+            background-color: #444;
+        }
+
+        .continue-info {
+            flex: 1;
+        }
+
+        .continue-show-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .continue-episode {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background-color: #444;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--accent-color);
+            transition: width 0.3s;
+        }
+
+        .continue-play-btn {
+            padding: 0.5rem 1rem;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+
+        .continue-play-btn:hover {
+            background-color: #0056b3;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
             }
 
             .shows-grid {
-                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
                 gap: 1rem;
             }
 
             .show-image {
-                height: 280px;
+                height: 160px;
             }
 
             .episode-grid {
@@ -217,12 +336,26 @@
     </style>
 </head>
 <body>
+    <script src="config.js"></script>
     <div class="container">
         <header>
-            <h1>Video Streaming</h1>
+            <h1>🎬 Video Streaming</h1>
+            <div class="user-info">
+                <span class="user-name" id="user-display"></span>
+                <button class="logout-btn" onclick="Auth.logout()">Logout</button>
+            </div>
         </header>
         <main id="main-content">
+            <!-- Continue Watching Section -->
+            <section class="continue-watching-section" id="continue-watching">
+                <h2>▶️ Continue Watching</h2>
+                <div class="continue-grid" id="continue-container">
+                    <!-- Continue watching items will be populated here -->
+                </div>
+            </section>
+
             <div id="shows-view">
+                <h2 style="margin-bottom: 1rem;">All Shows</h2>
                 <div class="search-container">
                     <input type="text" id="search-input" placeholder="Search for shows..." />
                     <span class="search-icon">🔍</span>
@@ -272,6 +405,63 @@
         let shows = [];
         let currentShow = null;
         let currentSeason = null;
+
+        // Check authentication on page load
+        (async function checkAuth() {
+            if (!Auth.isLoggedIn()) {
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            // Display user info
+            const user = Auth.getUser();
+            if (user) {
+                document.getElementById('user-display').textContent = `Hello, ${user.username}`;
+            }
+            
+            // Load continue watching
+            loadContinueWatching();
+        })();
+
+        async function loadContinueWatching() {
+            try {
+                const response = await Auth.fetch(API.user.continueWatching);
+                if (response.ok) {
+                    const items = await response.json();
+                    displayContinueWatching(items);
+                }
+            } catch (error) {
+                console.error('Error loading continue watching:', error);
+            }
+        }
+
+        function displayContinueWatching(items) {
+            const section = document.getElementById('continue-watching');
+            const container = document.getElementById('continue-container');
+            
+            if (!items || items.length === 0) {
+                section.classList.remove('has-items');
+                return;
+            }
+            
+            section.classList.add('has-items');
+            container.innerHTML = items.map(item => {
+                const progress = item.duration > 0 ? (item.progress / item.duration) * 100 : 0;
+                return `
+                    <div class="continue-card" onclick="window.location.href='/player?id=${item.episode_id}&t=${item.progress}'">
+                        <img class="continue-poster" src="${item.poster || ''}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'90\' viewBox=\'0 0 60 90\'%3E%3Crect width=\'60\' height=\'90\' fill=\'%23444\'/%3E%3C/svg%3E'" alt="${item.show_title}">
+                        <div class="continue-info">
+                            <div class="continue-show-title">${item.show_title}</div>
+                            <div class="continue-episode">${item.episode_title}</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                        <button class="continue-play-btn">Resume</button>
+                    </div>
+                `;
+            }).join('');
+        }
 
         function filterShows(searchTerm) {
             const container = document.getElementById('shows-container');
@@ -339,7 +529,7 @@
         }
 
         function loadEpisodes(showId) {
-            fetch(`/api/shows/${showId}`)
+            fetch(API.showDetails(showId))
                 .then(response => response.json())
                 .then(show => {
                     currentShow = show;
@@ -368,8 +558,8 @@
             }
         });
 
-        // Load shows on page load - use relative URL since served from same backend
-        fetch('/api/shows')
+        // Load shows on page load - use config API URL
+        fetch(API.shows)
             .then(response => response.json())
             .then(showsData => {
                 shows = showsData;
