@@ -1,5 +1,8 @@
 // Backend API Configuration
-const API_BASE_URL = 'http://localhost:8087'; // Change this to your deployed backend URL
+// In production with nginx, use relative URLs (empty string)
+// In development, use the backend URL directly
+const IS_DEVELOPMENT = window.location.hostname === 'localhost' && window.location.port === '3000';
+const API_BASE_URL = IS_DEVELOPMENT ? 'http://localhost:8087' : '';
 
 // API endpoints
 const API = {
