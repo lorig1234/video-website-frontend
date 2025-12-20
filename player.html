@@ -135,16 +135,23 @@
                 return;
             }
 
-            // Extract show ID from video ID (format: showid_episodenumber)
-            const showId = videoId.substring(0, videoId.lastIndexOf('_'));
+            // Extract show ID from video ID (format: showid_s##_e##)
+            // Handle both formats: "showid_s01_e01" and "showid_episodenumber"
+            const showIdMatch = videoId.match(/^(.+?)_s\d+_e\d+/i);
+            const showId = showIdMatch ? showIdMatch[1] : videoId.substring(0, videoId.lastIndexOf('_'));
+            
             if (showId) {
                 backButton.href = `/#show=${showId}`;
+                
+                console.log('Fetching show data for showId:', showId);
                 
                 // Fetch show data to get all episodes
                 fetch(API.showDetails(showId))
                     .then(response => response.json())
                     .then(data => {
                         showData = data;
+                        console.log('Show data loaded:', data.title);
+                        
                         // Flatten all episodes from all seasons
                         let allEpisodes = [];
                         data.seasons.forEach(season => {
@@ -210,6 +217,7 @@
                 const currentTime = Math.floor(player.currentTime());
                 // Save every 10 seconds of progress
                 if (currentTime - lastSavedProgress >= 10) {
+                    console.log('Triggering save at', currentTime, 'seconds');
                     saveProgress();
                 }
             });
@@ -226,29 +234,78 @@
 
             // Save progress function
             async function saveProgress(immediate = false) {
-                if (!currentEpisodeId || !Auth.isLoggedIn()) return;
+                console.log('saveProgress called, immediate:', immediate, 'authenticated:', Auth.isLoggedIn());
+                
+                if (!currentEpisodeId || !Auth.isLoggedIn()) {
+                    console.warn('Cannot save: episodeId=', currentEpisodeId, 'loggedIn=', Auth.isLoggedIn());
+                    return;
+                }
                 
                 const currentTime = Math.floor(player.currentTime());
                 const duration = Math.floor(videoDuration);
                 
+                console.log('Progress:', currentTime, '/', duration, 'lastSaved:', lastSavedProgress);
+                
                 // Don't save if no significant change
-                if (!immediate && Math.abs(currentTime - lastSavedProgress) < 5) return;
+                if (!immediate && Math.abs(currentTime - lastSavedProgress) < 5) {
+                    console.log('Skipping save - no significant change');
+                    return;
+                }
                 
                 lastSavedProgress = currentTime;
 
+                // Extract show_id from episode_id (format: show_id_s##_e##)
+                const showIdMatch = currentEpisodeId.match(/^(.+?)_s\d+_e\d+/i);
+                const showId = showIdMatch ? showIdMatch[1] : currentEpisodeId.substring(0, currentEpisodeId.lastIndexOf('_'));
+                
+                console.log('Extracted showId:', showId, 'from episodeId:', currentEpisodeId);
+                
+                // Get episode and show titles from showData if available
+                let episodeTitle = '';
+                let showTitle = '';
+                if (showData && showData.title) {
+                    showTitle = showData.title;
+                    // Find the episode in the show data
+                    if (showData.seasons && Array.isArray(showData.seasons)) {
+                        for (const season of showData.seasons) {
+                            if (season.episodes && Array.isArray(season.episodes)) {
+                                const episode = season.episodes.find(ep => ep.id === currentEpisodeId);
+                                if (episode) {
+                                    episodeTitle = episode.title;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const payload = {
+                    show_id: showId,
+                    episode_id: currentEpisodeId,
+                    position_seconds: currentTime,
+                    duration_seconds: duration,
+                    show_title: showTitle,
+                    episode_title: episodeTitle
+                };
+                
+                console.log('Saving progress with payload:', payload);
+
                 try {
-                    await Auth.fetch(API.user.watchProgress, {
+                    const response = await Auth.fetch(API.user.watchProgress, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            episode_id: currentEpisodeId,
-                            progress: currentTime,
-                            duration: duration
-                        })
+                        body: JSON.stringify(payload)
                     });
-                    console.log('Progress saved:', currentTime);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('✅ Progress saved successfully:', data);
+                    } else {
+                        const errorText = await response.text();
+                        console.error('❌ Failed to save progress:', response.status, errorText);
+                    }
                 } catch (error) {
-                    console.error('Error saving progress:', error);
+                    console.error('❌ Error saving progress:', error);
                 }
             }
         });

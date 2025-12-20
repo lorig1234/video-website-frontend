@@ -129,12 +129,63 @@
             text-decoration: none;
             border-radius: 4px;
             font-weight: 500;
-            margin-top: 0.3rem;
             transition: background-color 0.2s;
+            border: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
         }
 
         .show-button:hover {
             background-color: #0056b3;
+        }
+
+        .show-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .continue-episode-btn {
+            padding: 0.4rem 0.8rem;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            transition: background-color 0.2s;
+        }
+
+        .continue-episode-btn:hover {
+            background-color: #1e7b34;
+        }
+
+        .show-continue-info {
+            margin: 0.5rem 0;
+        }
+
+        .continue-label {
+            font-size: 0.8rem;
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .show-progress-bar {
+            height: 3px;
+            background-color: #444;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 0.25rem;
+        }
+
+        .show-progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            transition: width 0.3s;
         }
 
         /* Episode list styles */
@@ -284,6 +335,12 @@
         .continue-episode {
             color: var(--text-secondary);
             font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .continue-time {
+            color: var(--accent-color);
+            font-size: 0.75rem;
             margin-bottom: 0.5rem;
         }
 
@@ -348,7 +405,7 @@
         <main id="main-content">
             <!-- Continue Watching Section -->
             <section class="continue-watching-section" id="continue-watching">
-                <h2>▶️ Continue Watching</h2>
+                <h2>🎬 Continue Watching</h2>
                 <div class="continue-grid" id="continue-container">
                     <!-- Continue watching items will be populated here -->
                 </div>
@@ -405,6 +462,7 @@
         let shows = [];
         let currentShow = null;
         let currentSeason = null;
+        let lastEpisodePerShow = {}; // Store last watched episode per show
 
         // Check authentication on page load
         (async function checkAuth() {
@@ -419,16 +477,44 @@
                 document.getElementById('user-display').textContent = `Hello, ${user.username}`;
             }
             
-            // Load continue watching
+            // Load continue watching and last episode per show
             loadContinueWatching();
+            loadLastEpisodePerShow();
         })();
+
+        async function loadLastEpisodePerShow() {
+            try {
+                const response = await Auth.fetch(API.user.lastEpisodePerShow);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        lastEpisodePerShow = data.data;
+                        // Re-render shows if already loaded
+                        if (shows.length > 0) {
+                            const container = document.getElementById('shows-container');
+                            container.innerHTML = shows.map(show => createShowCard(show)).join('');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading last episode per show:', error);
+            }
+        }
 
         async function loadContinueWatching() {
             try {
-                const response = await Auth.fetch(API.user.continueWatching);
+                // Use last-episode-per-show to get only one episode per show
+                const response = await Auth.fetch(API.user.lastEpisodePerShow);
                 if (response.ok) {
-                    const items = await response.json();
-                    displayContinueWatching(items);
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        // Convert the object to an array and filter for incomplete episodes
+                        const items = Object.values(data.data)
+                            .filter(item => item.progress_percent < 95)
+                            .sort((a, b) => new Date(b.watched_at) - new Date(a.watched_at));
+                        
+                        displayContinueWatching(items);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading continue watching:', error);
@@ -446,18 +532,37 @@
             
             section.classList.add('has-items');
             container.innerHTML = items.map(item => {
-                const progress = item.duration > 0 ? (item.progress / item.duration) * 100 : 0;
+                const progress = item.duration_seconds > 0 ? (item.position_seconds / item.duration_seconds) * 100 : 0;
+                const showId = item.show_id || '';
+                const posterUrl = `/posters/${showId}.jpg`;
+                
+                // Get show title - try from item, then look up in shows array
+                let showTitle = item.show_title;
+                if (!showTitle && showId && shows.length > 0) {
+                    const show = shows.find(s => s.id === showId);
+                    showTitle = show ? show.title : showId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                }
+                if (!showTitle) {
+                    showTitle = showId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Unknown Show';
+                }
+                
+                // Format time remaining
+                const remainingSeconds = item.duration_seconds - item.position_seconds;
+                const remainingMinutes = Math.floor(remainingSeconds / 60);
+                const remainingText = remainingMinutes > 0 ? `${remainingMinutes} min left` : 'Almost done';
+                
                 return `
-                    <div class="continue-card" onclick="window.location.href='/player?id=${item.episode_id}&t=${item.progress}'">
-                        <img class="continue-poster" src="${item.poster || ''}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'90\' viewBox=\'0 0 60 90\'%3E%3Crect width=\'60\' height=\'90\' fill=\'%23444\'/%3E%3C/svg%3E'" alt="${item.show_title}">
+                    <div class="continue-card" onclick="window.location.href='/player?id=${item.episode_id}&t=${item.position_seconds}'">
+                        <img class="continue-poster" src="${posterUrl}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'90\' viewBox=\'0 0 60 90\'%3E%3Crect width=\'60\' height=\'90\' fill=\'%23444\'/%3E%3C/svg%3E'" alt="${showTitle}">
                         <div class="continue-info">
-                            <div class="continue-show-title">${item.show_title}</div>
-                            <div class="continue-episode">${item.episode_title}</div>
+                            <div class="continue-show-title">${showTitle}</div>
+                            <div class="continue-episode">${item.episode_title || item.episode_id}</div>
+                            <div class="continue-time">${remainingText}</div>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${progress}%"></div>
                             </div>
                         </div>
-                        <button class="continue-play-btn">Resume</button>
+                        <button class="continue-play-btn">▶ Resume</button>
                     </div>
                 `;
             }).join('');
@@ -477,6 +582,30 @@
         }
 
         function createShowCard(show) {
+            const lastEpisode = lastEpisodePerShow[show.id];
+            let continueInfo = '';
+            let continueButton = '';
+            
+            if (lastEpisode && lastEpisode.progress_percent < 95) {
+                // Show has unwatched progress
+                const seasonMatch = lastEpisode.episode_id.match(/_s(\d+)_e(\d+)/i);
+                let episodeLabel = lastEpisode.episode_title || 'Episode';
+                if (seasonMatch) {
+                    episodeLabel = `S${seasonMatch[1]}E${seasonMatch[2]}`;
+                }
+                continueInfo = `
+                    <div class="show-continue-info">
+                        <span class="continue-label">Continue: ${episodeLabel}</span>
+                        <div class="show-progress-bar">
+                            <div class="show-progress-fill" style="width: ${lastEpisode.progress_percent}%"></div>
+                        </div>
+                    </div>
+                `;
+                continueButton = `
+                    <button class="continue-episode-btn" onclick="event.stopPropagation(); window.location.href='/player?id=${lastEpisode.episode_id}&t=${lastEpisode.position_seconds}'">▶ Resume</button>
+                `;
+            }
+            
             return `
                 <div class="show-card" onclick="loadEpisodes('${show.id}')">
                     <img class="show-image" src="${show.poster}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'250\' height=\'350\' viewBox=\'0 0 250 350\'%3E%3Crect width=\'250\' height=\'350\' fill=\'%23444\'/%3E%3Ctext x=\'125\' y=\'175\' fill=\'%23666\' text-anchor=\'middle\' dominant-baseline=\'middle\' font-family=\'sans-serif\' font-size=\'14\'%3ENo Poster%3C/text%3E%3C/svg%3E'" alt="${show.title}">
@@ -485,7 +614,11 @@
                         <div class="episode-count">
                             ${show.seasonCount} Season${show.seasonCount !== 1 ? 's' : ''}, ${show.episodeCount} Episode${show.episodeCount !== 1 ? 's' : ''}
                         </div>
-                        <button class="show-button">View Episodes</button>
+                        ${continueInfo}
+                        <div class="show-buttons">
+                            ${continueButton}
+                            <button class="show-button">View Episodes</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -565,6 +698,9 @@
                 shows = showsData;
                 const container = document.getElementById('shows-container');
                 container.innerHTML = shows.map(show => createShowCard(show)).join('');
+
+                // After shows are loaded, reload continue watching to display with proper titles
+                loadContinueWatching();
 
                 // Set up search functionality
                 const searchInput = document.getElementById('search-input');

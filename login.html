@@ -338,10 +338,10 @@
 
                 if (response.ok) {
                     // Store token and user info
-                    localStorage.setItem('authToken', data.access_token);
+                    localStorage.setItem('authToken', data.token);
                     localStorage.setItem('user', JSON.stringify({
-                        id: data.user_id,
-                        username: data.username
+                        id: data.user.id,
+                        username: data.user.username
                     }));
                     
                     showMessage('Login successful! Redirecting...', 'success');

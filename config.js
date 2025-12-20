@@ -24,7 +24,8 @@ const API = {
     user: {
         watchProgress: `${API_BASE_URL}/api/user/watch-progress`,
         continueWatching: `${API_BASE_URL}/api/user/continue-watching`,
-        watchHistory: `${API_BASE_URL}/api/user/watch-history`
+        watchHistory: `${API_BASE_URL}/api/user/watch-history`,
+        lastEpisodePerShow: `${API_BASE_URL}/api/user/last-episode-per-show`
     }
 };
 
@@ -65,7 +66,7 @@ const Auth = {
     // Fetch wrapper with auth
     fetch: async (url, options = {}) => {
         const token = localStorage.getItem('authToken');
-        const headers = options.headers || {};
+        const headers = { ...(options.headers || {}) };
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
