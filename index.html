@@ -53,7 +53,7 @@
             font-size: 0.9rem;
         }
 
-        .logout-btn {
+        .history-btn, .logout-btn {
             padding: 0.5rem 1rem;
             background-color: transparent;
             border: 1px solid var(--accent-color);
@@ -65,9 +65,148 @@
             transition: all 0.2s;
         }
 
-        .logout-btn:hover {
+        .history-btn:hover, .logout-btn:hover {
             background-color: var(--accent-color);
             color: white;
+        }
+
+        /* History Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.show {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--secondary-color);
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: var(--accent-color);
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .history-item {
+            background-color: var(--primary-color);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .history-item:hover {
+            background-color: #2a2a2a;
+        }
+
+        .history-poster {
+            width: 60px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 4px;
+            background-color: #444;
+            flex-shrink: 0;
+        }
+
+        .history-details {
+            flex: 1;
+        }
+
+        .history-show-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .history-episode {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .history-time {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .history-progress {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .history-progress-bar {
+            flex: 1;
+            height: 4px;
+            background-color: #444;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .history-progress-fill {
+            height: 100%;
+            background-color: var(--accent-color);
+            transition: width 0.3s;
+        }
+
+        .history-progress-text {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            min-width: 40px;
+        }
+
+        .no-history {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
         }
 
         h1, h2 {
@@ -399,9 +538,24 @@
             <h1>🎬 Video Streaming</h1>
             <div class="user-info">
                 <span class="user-name" id="user-display"></span>
+                <button class="history-btn" onclick="showHistory()">📜 History</button>
                 <button class="logout-btn" onclick="Auth.logout()">Logout</button>
             </div>
         </header>
+
+        <!-- History Modal -->
+        <div id="history-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📜 Watch History</h2>
+                    <button class="close-btn" onclick="closeHistory()">&times;</button>
+                </div>
+                <div class="history-list" id="history-list">
+                    <!-- History items will be populated here -->
+                </div>
+            </div>
+        </div>
+
         <main id="main-content">
             <!-- Continue Watching Section -->
             <section class="continue-watching-section" id="continue-watching">
@@ -715,6 +869,109 @@
                 }
             })
             .catch(error => console.error('Error:', error));
+
+        // History Modal Functions
+        async function showHistory() {
+            const modal = document.getElementById('history-modal');
+            const historyList = document.getElementById('history-list');
+            
+            modal.classList.add('show');
+            historyList.innerHTML = '<div style="text-align: center; padding: 2rem;">Loading...</div>';
+            
+            try {
+                const response = await Auth.fetch(API.user.watchHistory);
+                if (response.ok) {
+                    const data = await response.json();
+                    // The response has 'history' not 'items'
+                    if (data.success && data.history && data.history.length > 0) {
+                        // Get only the latest 10 episodes
+                        const latestItems = data.history.slice(0, 10);
+                        displayHistory(latestItems);
+                    } else {
+                        historyList.innerHTML = '<div class="no-history">No watch history yet</div>';
+                    }
+                } else {
+                    historyList.innerHTML = '<div class="no-history">Failed to load history</div>';
+                }
+            } catch (error) {
+                console.error('Error loading history:', error);
+                historyList.innerHTML = '<div class="no-history">Error loading history</div>';
+            }
+        }
+
+        function closeHistory() {
+            const modal = document.getElementById('history-modal');
+            modal.classList.remove('show');
+        }
+
+        function displayHistory(items) {
+            const historyList = document.getElementById('history-list');
+            
+            historyList.innerHTML = items.map(item => {
+                const progress = Math.round(item.progress_percent || 0);
+                const showId = item.show_id || item.episode_id.substring(0, item.episode_id.lastIndexOf('_s'));
+                const posterUrl = `/posters/${showId}.jpg`;
+                
+                // Smart title lookup with fallbacks
+                let showTitle = item.show_title;
+                if (!showTitle || showTitle.trim() === '') {
+                    // Try to find the show in our shows array
+                    const showData = shows.find(s => s.id === showId);
+                    if (showData && showData.title) {
+                        showTitle = showData.title;
+                    } else {
+                        // Format show_id as title
+                        showTitle = showId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    }
+                }
+                
+                // Format watched time
+                const watchedDate = new Date(item.watched_at);
+                const now = new Date();
+                const diffMs = now - watchedDate;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMins / 60);
+                const diffDays = Math.floor(diffHours / 24);
+                
+                let timeAgo;
+                if (diffMins < 1) {
+                    timeAgo = 'Just now';
+                } else if (diffMins < 60) {
+                    timeAgo = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+                } else if (diffHours < 24) {
+                    timeAgo = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                } else if (diffDays < 7) {
+                    timeAgo = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                } else {
+                    timeAgo = watchedDate.toLocaleDateString();
+                }
+                
+                return `
+                    <div class="history-item" onclick="window.location.href='/player?id=${item.episode_id}&t=${item.position_seconds}'">
+                        <img class="history-poster" src="${posterUrl}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'90\' viewBox=\'0 0 60 90\'%3E%3Crect width=\'60\' height=\'90\' fill=\'%23444\'/%3E%3C/svg%3E'" alt="${showTitle}">
+                        <div class="history-details">
+                            <div class="history-show-title">${showTitle}</div>
+                            <div class="history-episode">${item.episode_title || item.episode_id}</div>
+                            <div class="history-time">Watched ${timeAgo}</div>
+                            <div class="history-progress">
+                                <div class="history-progress-bar">
+                                    <div class="history-progress-fill" style="width: ${progress}%"></div>
+                                </div>
+                                <span class="history-progress-text">${progress}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('history-modal');
+            if (e.target === modal) {
+                closeHistory();
+            }
+        });
     </script>
 </body>
 </html>

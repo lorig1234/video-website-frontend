@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Video Player</title>
     <link href="https://vjs.zencdn.net/8.5.2/video-js.css" rel="stylesheet" />
     <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
@@ -91,9 +93,11 @@
             id="my-video" 
             class="video-js vjs-big-play-centered vjs-fluid" 
             controls 
-            preload="auto"
+            preload="metadata"
             playsinline
-            webkit-playsinline>
+            webkit-playsinline
+            x-webkit-airplay="allow"
+            crossorigin="anonymous">
             Your browser does not support HTML5 video.
         </video>
         <div id="error-message" class="error-message"></div>
@@ -119,6 +123,8 @@
             const videoId = urlParams.get('id');
             const startTime = parseInt(urlParams.get('t')) || 0;
             currentEpisodeId = videoId;
+            
+            console.log('Player initialized with videoId:', videoId, 'startTime:', startTime);
             
             const errorElement = document.getElementById('error-message');
             const backButton = document.getElementById('back-button');
@@ -188,13 +194,26 @@
                 controls: true,
                 fluid: true,
                 responsive: true,
-                playbackRates: [0.5, 1, 1.5, 2]
+                playbackRates: [0.5, 1, 1.5, 2],
+                html5: {
+                    hls: {
+                        overrideNative: true
+                    },
+                    nativeVideoTracks: false,
+                    nativeAudioTracks: false,
+                    nativeTextTracks: false
+                }
             });
 
+            // Set video source
+            console.log('Setting video source:', API.stream(videoId));
             player.src({
                 src: API.stream(videoId),
                 type: 'video/mp4'
             });
+
+            // Preload metadata for faster seeking
+            player.load();
 
             player.on('error', function() {
                 const error = player.error();
@@ -202,12 +221,49 @@
                 showError('Error playing the video. Please try again.');
             });
 
+            // Handle waiting/buffering states
+            player.on('waiting', function() {
+                console.log('Player waiting/buffering...');
+            });
+
+            player.on('playing', function() {
+                console.log('Player started playing');
+            });
+
+            player.on('stalled', function() {
+                console.warn('Player stalled, attempting to recover...');
+                // Try to restart playback if stalled
+                setTimeout(() => {
+                    if (player.paused() && player.readyState() < 3) {
+                        console.log('Attempting to restart playback');
+                        player.load();
+                    }
+                }, 3000);
+            });
+
             player.on('loadedmetadata', function() {
-                console.log('Video metadata loaded successfully');
+                console.log('Video metadata loaded successfully, duration:', player.duration());
                 videoDuration = player.duration();
                 
-                // Seek to start time if provided
+                // Seek to start time if provided - with retry for Safari
                 if (startTime > 0 && startTime < videoDuration) {
+                    console.log('Attempting to seek to:', startTime);
+                    
+                    // Safari sometimes needs a small delay before seeking
+                    setTimeout(() => {
+                        player.currentTime(startTime);
+                        console.log('Seeked to:', startTime, 'actual position:', player.currentTime());
+                    }, 100);
+                }
+            });
+
+            // Additional event to handle Safari's quirks
+            player.on('canplay', function() {
+                console.log('Video can play, current time:', player.currentTime());
+                
+                // Double-check the start time is set (Safari workaround)
+                if (startTime > 0 && Math.abs(player.currentTime() - startTime) > 5) {
+                    console.log('Correcting start time to:', startTime);
                     player.currentTime(startTime);
                 }
             });
