@@ -529,6 +529,37 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Category Tabs */
+        .category-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--secondary-color);
+        }
+
+        .category-tab {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            margin-bottom: -2px;
+        }
+
+        .category-tab:hover {
+            color: var(--text-color);
+        }
+
+        .category-tab.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
     </style>
 </head>
 <body>
@@ -566,14 +597,31 @@
             </section>
 
             <div id="shows-view">
-                <h2 style="margin-bottom: 1rem;">All Shows</h2>
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search for shows..." />
+                    <input type="text" id="search-input" placeholder="Search for shows and movies..." />
                     <span class="search-icon">🔍</span>
                 </div>
-                <div class="shows-grid" id="shows-container">
-                    <!-- Shows will be populated here -->
+
+                <!-- Category Tabs -->
+                <div class="category-tabs">
+                    <button class="category-tab active" onclick="switchTab('all')" id="tab-all">All</button>
+                    <button class="category-tab" onclick="switchTab('series')" id="tab-series">📺 Series</button>
+                    <button class="category-tab" onclick="switchTab('movies')" id="tab-movies">🎬 Movies</button>
                 </div>
+
+                <!-- Movies Section -->
+                <section id="movies-section" style="display:none; margin-bottom: 2rem;">
+                    <h2 style="margin-bottom: 1rem;">� Movies</h2>
+                    <div class="shows-grid" id="movies-container">
+                    </div>
+                </section>
+
+                <!-- Series Section -->
+                <section id="series-section">
+                    <h2 style="margin-bottom: 1rem;">📺 TV Shows</h2>
+                    <div class="shows-grid" id="shows-container">
+                    </div>
+                </section>
             </div>
             <div id="episodes-view" style="display: none;">
                 <a href="#" class="back-button" onclick="showAllShows(); return false;">← Back to Shows</a>
@@ -614,8 +662,10 @@
 
     <script>
         let shows = [];
+        let movies = [];
         let currentShow = null;
         let currentSeason = null;
+        let currentTab = 'all'; // 'all', 'series', 'movies'
         let lastEpisodePerShow = {}; // Store last watched episode per show
 
         // Check authentication on page load
@@ -722,17 +772,52 @@
             }).join('');
         }
 
-        function filterShows(searchTerm) {
-            const container = document.getElementById('shows-container');
-            const filteredShows = shows.filter(show => 
-                show.title.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+        function switchTab(tab) {
+            currentTab = tab;
+            // Update active tab styling
+            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
 
-            if (filteredShows.length === 0) {
-                container.innerHTML = '<div class="no-results">No shows found matching your search.</div>';
+            const searchTerm = document.getElementById('search-input').value;
+            applyFilter(searchTerm);
+        }
+
+        function applyFilter(searchTerm) {
+            const moviesSection = document.getElementById('movies-section');
+            const seriesSection = document.getElementById('series-section');
+            const moviesContainer = document.getElementById('movies-container');
+            const showsContainer = document.getElementById('shows-container');
+
+            const term = searchTerm.toLowerCase();
+            const filteredShows = shows.filter(s => s.title.toLowerCase().includes(term));
+            const filteredMovies = movies.filter(m => m.title.toLowerCase().includes(term));
+
+            const showSeries = currentTab === 'all' || currentTab === 'series';
+            const showMovies = currentTab === 'all' || currentTab === 'movies';
+
+            // Series
+            if (showSeries && filteredShows.length > 0) {
+                seriesSection.style.display = 'block';
+                showsContainer.innerHTML = filteredShows.map(show => createShowCard(show)).join('');
             } else {
-                container.innerHTML = filteredShows.map(show => createShowCard(show)).join('');
+                seriesSection.style.display = showSeries ? 'block' : 'none';
+                showsContainer.innerHTML = showSeries && filteredShows.length === 0
+                    ? '<div class="no-results">No series found.</div>' : '';
             }
+
+            // Movies
+            if (showMovies && filteredMovies.length > 0) {
+                moviesSection.style.display = 'block';
+                moviesContainer.innerHTML = filteredMovies.map(m => createMovieCard(m)).join('');
+            } else {
+                moviesSection.style.display = showMovies ? 'block' : 'none';
+                moviesContainer.innerHTML = showMovies && filteredMovies.length === 0
+                    ? '<div class="no-results">No movies found.</div>' : '';
+            }
+        }
+
+        function filterShows(searchTerm) {
+            applyFilter(searchTerm);
         }
 
         function createShowCard(show) {
@@ -783,6 +868,22 @@
                 <div class="episode-card">
                     <div class="episode-title">${episode.title}</div>
                     <a href="/player?id=${episode.id}" class="show-button">Watch</a>
+                </div>
+            `;
+        }
+
+        function createMovieCard(movie) {
+            const yearText = movie.year ? ` (${movie.year})` : '';
+            return `
+                <div class="show-card" onclick="window.location.href='/player?movie=${movie.id}'">
+                    <img class="show-image" src="${movie.poster}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'250\\' height=\\'350\\' viewBox=\\'0 0 250 350\\'%3E%3Crect width=\\'250\\' height=\\'350\\' fill=\\'%23444\\'/%3E%3Ctext x=\\'125\\' y=\\'175\\' fill=\\'%23666\\' text-anchor=\\'middle\\' dominant-baseline=\\'middle\\' font-family=\\'sans-serif\\' font-size=\\'14\\'%3ENo Poster%3C/text%3E%3C/svg%3E'" alt="${movie.title}">
+                    <div class="show-info">
+                        <h3 class="show-title">${movie.title}</h3>
+                        <div class="episode-count">🎬 Movie${yearText}</div>
+                        <div class="show-buttons">
+                            <button class="show-button">▶ Watch</button>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -869,6 +970,15 @@
                 }
             })
             .catch(error => console.error('Error:', error));
+
+        // Load movies on page load
+        fetch(API.movies)
+            .then(response => response.json())
+            .then(moviesData => {
+                movies = moviesData;
+                applyFilter(document.getElementById('search-input').value || '');
+            })
+            .catch(error => console.error('Error loading movies:', error));
 
         // History Modal Functions
         async function showHistory() {

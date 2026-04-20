@@ -84,6 +84,114 @@
             cursor: not-allowed;
             opacity: 0.5;
         }
+
+        /* Next Episode Countdown Overlay */
+        .next-episode-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 1.5rem;
+            font-family: 'Inter', Arial, sans-serif;
+        }
+
+        .next-episode-overlay.show {
+            display: flex;
+        }
+
+        .next-ep-title {
+            color: #aaa;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .next-ep-name {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        .countdown-ring {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+
+        .countdown-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .countdown-ring circle {
+            fill: none;
+            stroke-width: 4;
+        }
+
+        .countdown-ring .ring-bg {
+            stroke: #444;
+        }
+
+        .countdown-ring .ring-progress {
+            stroke: #007bff;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        .countdown-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .next-ep-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .next-ep-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Inter', Arial, sans-serif;
+        }
+
+        .next-ep-play {
+            background: #007bff;
+            color: white;
+        }
+
+        .next-ep-play:hover {
+            background: #0056b3;
+        }
+
+        .next-ep-cancel {
+            background: transparent;
+            color: #aaa;
+            border: 1px solid #555;
+        }
+
+        .next-ep-cancel:hover {
+            color: white;
+            border-color: #888;
+        }
     </style>
 </head>
 <body>
@@ -101,6 +209,24 @@
             Your browser does not support HTML5 video.
         </video>
         <div id="error-message" class="error-message"></div>
+
+        <!-- Next Episode Countdown Overlay -->
+        <div id="next-episode-overlay" class="next-episode-overlay">
+            <div class="next-ep-title">NEXT EPISODE</div>
+            <div class="next-ep-name" id="next-ep-name"></div>
+            <div class="countdown-ring">
+                <svg width="100" height="100">
+                    <circle class="ring-bg" cx="50" cy="50" r="45"></circle>
+                    <circle class="ring-progress" id="ring-progress" cx="50" cy="50" r="45" 
+                        stroke-dasharray="283" stroke-dashoffset="0"></circle>
+                </svg>
+                <div class="countdown-number" id="countdown-number">5</div>
+            </div>
+            <div class="next-ep-buttons">
+                <button class="next-ep-btn next-ep-play" id="next-ep-play-btn">▶ Play Now</button>
+                <button class="next-ep-btn next-ep-cancel" id="next-ep-cancel-btn">Cancel</button>
+            </div>
+        </div>
     </div>
     <div class="nav-buttons">
         <button class="episode-nav-button" id="prev-episode" disabled>← Previous Episode</button>
@@ -117,14 +243,19 @@
         let videoDuration = 0;
         let currentEpisodeId = null;
         let showData = null;
+        let nextEpisode = null;
+        let countdownTimer = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             const videoId = urlParams.get('id');
+            const movieId = urlParams.get('movie');
             const startTime = parseInt(urlParams.get('t')) || 0;
-            currentEpisodeId = videoId;
+            const shouldAutoplay = urlParams.get('autoplay') === '1';
+            const isMovie = !!movieId;
+            currentEpisodeId = videoId || movieId;
             
-            console.log('Player initialized with videoId:', videoId, 'startTime:', startTime);
+            console.log('Player initialized with videoId:', videoId, 'movieId:', movieId, 'startTime:', startTime, 'autoplay:', shouldAutoplay);
             
             const errorElement = document.getElementById('error-message');
             const backButton = document.getElementById('back-button');
@@ -136,11 +267,29 @@
                 errorElement.style.display = 'block';
             }
 
-            if (!videoId) {
+            if (!videoId && !movieId) {
                 showError('No video ID provided');
                 return;
             }
 
+            // === MOVIE MODE ===
+            if (isMovie) {
+                backButton.href = '/';
+                // Hide episode nav buttons for movies
+                prevButton.style.display = 'none';
+                nextButton.style.display = 'none';
+
+                // Fetch movie details for title
+                fetch(API.movieDetails(movieId))
+                    .then(r => r.json())
+                    .then(data => {
+                        document.title = data.title + (data.year ? ` (${data.year})` : '') + ' — Player';
+                    })
+                    .catch(() => {});
+            }
+
+            // === TV SHOW MODE ===
+            if (!isMovie) {
             // Extract show ID from video ID (format: showid_s##_e##)
             // Handle both formats: "showid_s01_e01" and "showid_episodenumber"
             const showIdMatch = videoId.match(/^(.+?)_s\d+_e\d+/i);
@@ -177,11 +326,14 @@
                         }
                         
                         if (currentIndex < allEpisodes.length - 1) {
+                            // Store next episode for auto-play
+                            nextEpisode = allEpisodes[currentIndex + 1];
+
                             // Enable next button
                             nextButton.disabled = false;
                             nextButton.onclick = function() {
                                 saveProgress(true); // Save before navigating
-                                window.location.href = `/player?id=${allEpisodes[currentIndex + 1].id}`;
+                                window.location.href = `/player?id=${nextEpisode.id}&autoplay=1`;
                             };
                         }
                     })
@@ -189,6 +341,7 @@
                         console.error('Error fetching show data:', error);
                     });
             }
+            } // end if (!isMovie)
 
             const player = videojs('my-video', {
                 controls: true,
@@ -196,21 +349,36 @@
                 responsive: true,
                 playbackRates: [0.5, 1, 1.5, 2],
                 html5: {
-                    hls: {
-                        overrideNative: true
-                    },
-                    nativeVideoTracks: false,
-                    nativeAudioTracks: false,
                     nativeTextTracks: false
                 }
             });
 
             // Set video source
-            console.log('Setting video source:', API.stream(videoId));
+            const streamUrl = isMovie ? API.movieStream(movieId) : API.stream(videoId);
+            console.log('Setting video source:', streamUrl);
             player.src({
-                src: API.stream(videoId),
+                src: streamUrl,
                 type: 'video/mp4'
             });
+
+            // Load subtitles if available
+            const subtitleId = isMovie ? movieId : videoId;
+            fetch(API.subtitles(subtitleId))
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (!data || !data.subtitles || data.subtitles.length === 0) return;
+                    data.subtitles.forEach((track, index) => {
+                        player.addRemoteTextTrack({
+                            kind: 'subtitles',
+                            src: track.url,
+                            srclang: track.language,
+                            label: track.language.toUpperCase(),
+                            default: index === 0
+                        }, false);
+                    });
+                    console.log('Subtitles loaded:', data.subtitles.length, 'track(s)');
+                })
+                .catch(() => {});
 
             // Preload metadata for faster seeking
             player.load();
@@ -266,6 +434,65 @@
                     console.log('Correcting start time to:', startTime);
                     player.currentTime(startTime);
                 }
+
+                // Auto-play if coming from next episode transition
+                if (shouldAutoplay) {
+                    console.log('Auto-playing video');
+                    player.play().catch(err => console.log('Autoplay blocked by browser:', err));
+                }
+            });
+
+            // Auto-play next episode when current one ends
+            player.on('ended', function() {
+                console.log('Video ended, nextEpisode:', nextEpisode);
+                saveProgress(true);
+
+                if (!nextEpisode) return;
+
+                const overlay = document.getElementById('next-episode-overlay');
+                const epName = document.getElementById('next-ep-name');
+                const countdownNum = document.getElementById('countdown-number');
+                const ringProgress = document.getElementById('ring-progress');
+                const playBtn = document.getElementById('next-ep-play-btn');
+                const cancelBtn = document.getElementById('next-ep-cancel-btn');
+
+                // Show overlay with next episode name
+                epName.textContent = nextEpisode.title || nextEpisode.id;
+                overlay.classList.add('show');
+
+                const circumference = 2 * Math.PI * 45; // 283
+                let secondsLeft = 5;
+                countdownNum.textContent = secondsLeft;
+                ringProgress.style.strokeDashoffset = '0';
+
+                function goToNext() {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    window.location.href = `/player?id=${nextEpisode.id}&autoplay=1`;
+                }
+
+                function cancelCountdown() {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    overlay.classList.remove('show');
+                }
+
+                // Start countdown
+                countdownTimer = setInterval(() => {
+                    secondsLeft--;
+                    countdownNum.textContent = secondsLeft;
+                    // Animate ring: offset goes from 0 to full circumference
+                    const offset = circumference * ((5 - secondsLeft) / 5);
+                    ringProgress.style.strokeDashoffset = offset;
+
+                    if (secondsLeft <= 0) {
+                        goToNext();
+                    }
+                }, 1000);
+
+                // Button handlers
+                playBtn.onclick = goToNext;
+                cancelBtn.onclick = cancelCountdown;
             });
 
             // Save progress periodically while playing
@@ -312,7 +539,7 @@
 
                 // Extract show_id from episode_id (format: show_id_s##_e##)
                 const showIdMatch = currentEpisodeId.match(/^(.+?)_s\d+_e\d+/i);
-                const showId = showIdMatch ? showIdMatch[1] : currentEpisodeId.substring(0, currentEpisodeId.lastIndexOf('_'));
+                const showId = isMovie ? currentEpisodeId : (showIdMatch ? showIdMatch[1] : currentEpisodeId.substring(0, currentEpisodeId.lastIndexOf('_')));
                 
                 console.log('Extracted showId:', showId, 'from episodeId:', currentEpisodeId);
                 

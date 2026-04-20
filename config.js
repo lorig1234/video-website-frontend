@@ -11,6 +11,14 @@ const API = {
     showDetails: (showId) => `${API_BASE_URL}/api/shows/${showId}`,
     stream: (videoId) => `${API_BASE_URL}/api/stream/${videoId}`,
     
+    // Movies
+    movies: `${API_BASE_URL}/api/movies`,
+    movieDetails: (movieId) => `${API_BASE_URL}/api/movies/${movieId}`,
+    movieStream: (movieId) => `${API_BASE_URL}/api/movies/stream/${movieId}`,
+
+    // Subtitles
+    subtitles: (id) => `${API_BASE_URL}/api/subtitles/${id}`,
+    
     // Authentication
     auth: {
         register: `${API_BASE_URL}/api/auth/register`,
